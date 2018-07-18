@@ -62,14 +62,14 @@ class OrnsteinUhlenbeckProcess(AnnealedGaussianProcess):
 
 
 class RandomActivation(object):
-    def __init__(self, size=18, reps_min=1, reps_max=3, min_miscles=1, max_muscles=None):
+    def __init__(self, size=-1, reps_min=1, reps_max=3, min_miscles=1, max_muscles=None):
         self.size = size
         self.reps_min = reps_min
         self.reps_max = reps_max
         self.min_miscles = min_miscles
         self.max_muscles = size if max_muscles is None else min(size, max_muscles)
         self.all_muscles = np.arange(size)
-        self.x = np.zeros(18)
+        self.x = np.zeros(-1)
         self.counter = 0
 
     def sample(self):

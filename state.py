@@ -60,9 +60,12 @@ def _get_pattern_idxs(lst, pattern):
 
 class State(object):
     def __init__(self, obstacles_mode='bodies_dist', obst_grid_dist=1, grid_points=100, last_n_bodies=0):
-        assert obstacles_mode in ['exclude', 'grid', 'bodies_dist', 'standard']
+        #assert obstacles_mode in ['exclude', 'grid', 'bodies_dist', 'standard']
 
+        # range(41) except 24, 25
         self.state_idxs = [i for i, n in enumerate(get_state_names(True, True)) if n not in ['pelvis2_x', 'pelvis2_y']]
+        # ['pelvis_rot', 'pelvis_x', 'pelvis_y', 'pelvis_vel_rot', 'pelvis_vel_x', 'pelvis_vel_y', 'hip_right', 'knee_right', 'ankle_right', 'hip_left', 'knee_left', 'ankle_left', 'hip_right_vel', 'knee_right_vel', 'ankle_right_vel', 'hip_left_vel', 'knee_left_vel', 'ankle_left_vel', 'mass_x', 'mass_y', 'mass_x_vel', 'mass_y_vel', 'head_x', 'head_y', 'torso_x', 'torso_y', 'toes_left_x', 'toes_left_y', 'toes_right_x', 'toes_right_y', 'talus_left_x', 'talus_left_y', 'talus_right_x', 'talus_right_y', 'muscle_left', 'muscle_right']
+        # len 36
         self.state_names = get_state_names()
         self.step = 0
         self.obstacles_mode = obstacles_mode
@@ -86,8 +89,9 @@ class State(object):
                     self.obst_names.append('{}_{}_obst_y'.format(n, i))
         self.obst_names.append('is_obstacle')
 
-        self.predict_bodies = last_n_bodies > 0
-        self.last_n_bodies = last_n_bodies
+        self.predict_bodies = last_n_bodies > 0 # False
+        self.last_n_bodies = last_n_bodies # 0
+        # range(22, 34)
         self.bodies_idxs = [self.state_names.index(n) for n in get_bodies_names()]
         if self.predict_bodies:
             # 2 last dimensions, first for emulator values, second for predicted
@@ -99,6 +103,9 @@ class State(object):
             self.bodies_flt[self.bodies_idxs] = 1
 
         self.state_names_out = self.state_names
+        # later overwritten!
+        # left_idxs [9, 10, 11, 15, 16, 17, 26, 27, 30, 31, 34]
+        # right: [6, 7, 8, 12, 13, 14, 28, 29, 32, 33, 35]
         self._set_left_right()
 
     def _set_left_right(self):
@@ -198,18 +205,18 @@ class State(object):
             return np.asarray(obst_state), obst_reward
 
     def process(self, state):
-        state = np.asarray(state)
-        state = state[self.state_idxs]
+        state = np.asarray(state) # size 158
+        state = state[self.state_idxs] # only body parts and obstacles
         if self.step == 0:
-            state[-3:] = [100, 0, 0]
+            state[-3:] = [100, 0, 0] # set obstacle values
 
         self._add_obstacle(state)
         obst_state, obst_reward = self._get_obstacle_state_reward(state)
-        state = state[:-3]
+        state = state[:-3] # now only look at values excluding obstacles
 
         # update last bodies
         #state_no_pred = state.copy()
-        if self.predict_bodies:
+        if self.predict_bodies: # False
             self._predict_bodies(state)
             #state_out = (state_no_pred + state)/2
             #state_out = state
@@ -275,23 +282,28 @@ class StateVelCentr(State):
         super(StateVelCentr, self).__init__(obstacles_mode=obstacles_mode, last_n_bodies=last_n_bodies)
 
         # center
-        self.centr_idx = self.state_names.index(centr_state)
-        self.states_to_center = [self.state_names.index(k) for k in states_to_center]
+        self.centr_idx = self.state_names.index(centr_state) # 1, index of pelvis_x
+        # x values of ['head', 'mass', 'torso', 'toes_left', 'toes_right', 'talus_left', 'talus_right']
+        self.states_to_center = [self.state_names.index(k) for k in states_to_center] # [22, 18, 24, 26, 28, 30, 32]
         # velocities
         self.prev_vals = None
-        self.vel_idxs = [self.state_names.index(k) for k in vel_states]
-        self.vel_before_centr = vel_before_centr
-        self.state_names += [n + '_vel' for n in vel_states]
-        self.exclude_centr = exclude_centr
+        self.vel_idxs = [self.state_names.index(k) for k in vel_states] # []
+        self.vel_before_centr = vel_before_centr # True
+        self.state_names += [n + '_vel' for n in vel_states] # vel_states is empty, nothing changes
+        self.exclude_centr = exclude_centr # True
 
         if self.exclude_centr:
+            # ['pelvis_rot', 'pelvis_y', 'pelvis_vel_rot', 'pelvis_vel_x', 'pelvis_vel_y', 'hip_right', 'knee_right', 'ankle_right', 'hip_left', 'knee_left', 'ankle_left', 'hip_right_vel', 'knee_right_vel', 'ankle_right_vel', 'hip_left_vel', 'knee_left_vel', 'ankle_left_vel', 'mass_x', 'mass_y', 'mass_x_vel', 'mass_y_vel', 'head_x', 'head_y', 'torso_x', 'torso_y', 'toes_left_x', 'toes_left_y', 'toes_right_x', 'toes_right_y', 'talus_left_x', 'talus_left_y', 'talus_right_x', 'talus_right_y', 'muscle_left', 'muscle_right']
             self.state_names_out = self.state_names[:max(0, self.centr_idx)] + \
                           self.state_names[self.centr_idx + 1:]
         else:
             self.state_names_out = self.state_names
 
         # left right idxs
+        # left: [8, 9, 10, 14, 15, 16, 25, 26, 29, 30, 33]
+        # right: [5, 6, 7, 11, 12, 13, 27, 28, 31, 32, 34]
         self._set_left_right()
+        # state_size: 39 (35 without obstacles)
 
     def _set_left_right(self):
         state_names = self.state_names_out
@@ -305,19 +317,32 @@ class StateVelCentr(State):
     def process(self, state):
         (state, obst_state), obst_reward = super(StateVelCentr, self).process(state)
 
-        if self.vel_before_centr:
-            cur_vals = state[self.vel_idxs]
-            vel = calculate_velocity(cur_vals, self.prev_vals)
-            self.prev_vals = cur_vals
-            state[self.states_to_center] -= state[self.centr_idx]
+        if self.vel_before_centr: # True
+            cur_vals = state[self.vel_idxs] # []
+            vel = calculate_velocity(cur_vals, self.prev_vals) # []
+            self.prev_vals = cur_vals # []
+            state[self.states_to_center] -= state[self.centr_idx] # transform states to center via pelvis_x
         else:
             state[self.states_to_center] -= state[self.centr_idx]
             cur_vals = state[self.vel_idxs]
             vel = calculate_velocity(cur_vals, self.prev_vals)
             self.prev_vals = cur_vals
 
-        if self.exclude_centr:
-            state = np.concatenate([state[:max(0, self.centr_idx)], state[self.centr_idx+1:]])
+        if self.exclude_centr: # True
+            state = np.concatenate([state[:max(0, self.centr_idx)], state[self.centr_idx+1:]]) # take everything except center (pelvix_x)
 
-        state = np.concatenate((state, vel, obst_state))
-        return state, obst_reward
+        state = np.concatenate((state, vel, obst_state)) # only state if removing obstacles as vel is []
+        return state
+
+
+class SameState(object):
+    def __init__(self, prosthetic):
+        self.state_size = 390 if prosthetic else 443
+
+    @staticmethod
+    def reset():
+        pass
+
+    @staticmethod
+    def process(state):
+        return state

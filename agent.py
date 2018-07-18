@@ -80,7 +80,7 @@ def get_noisy_weights(params, sigma):
     return weights
 
 
-def run_agent(model_params, weights, state_transform, data_queue, weights_queue,
+def run_agent(args, model_params, weights, state_transform, data_queue, weights_queue,
               process, global_step, updates, best_reward, param_noise_prob, save_dir,
               max_steps=10000000):
 
@@ -89,7 +89,9 @@ def run_agent(model_params, weights, state_transform, data_queue, weights_queue,
     actor = Agent(actor_fn, params_actor, params_crit)
     actor.set_actor_weights(weights)
 
-    env = RunEnv2(state_transform, max_obstacles=config.num_obstacles, skip_frame=config.skip_frames)
+    env = RunEnv2(state_transform, integrator_accuracy=args.accuracy, model=args.modeldim,
+                  prosthetic=args.prosthetic, difficulty=args.difficulty,
+                  skip_frame=config.skip_frames)
     random_process = OrnsteinUhlenbeckProcess(theta=.1, mu=0., sigma=.2, size=env.noutput,
                                               sigma_min=0.05, n_steps_annealing=1e6)
     # prepare buffers for data
@@ -103,7 +105,7 @@ def run_agent(model_params, weights, state_transform, data_queue, weights_queue,
     action_noise = True
     while global_step.value < max_steps:
         seed = random.randrange(2**32-2)
-        state = env.reset(seed=seed, difficulty=2)
+        state = env.reset(seed=seed, difficulty=args.difficulty)
         random_process.reset_states()
 
         total_reward = 0.
@@ -117,7 +119,7 @@ def run_agent(model_params, weights, state_transform, data_queue, weights_queue,
             if action_noise:
                 action += random_process.sample()
 
-            next_state, reward, next_terminal, info = env.step(action)
+            next_state, reward, next_terminal, info = env._step(action)
             total_reward += reward
             total_reward_original += info['original_reward']
             steps += 1
@@ -179,4 +181,6 @@ def run_agent(model_params, weights, state_transform, data_queue, weights_queue,
         del terminals[:]
 
         if total_episodes % 100 == 0:
-            env = RunEnv2(state_transform, max_obstacles=config.num_obstacles, skip_frame=config.skip_frames)
+            env = RunEnv2(state_transform, integrator_accuracy=args.accuracy, model=args.modeldim,
+                    prosthetic=args.prosthetic, difficulty=args.difficulty,
+                    skip_frame=config.skip_frames)

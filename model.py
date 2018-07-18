@@ -57,19 +57,21 @@ def build_critic(l_input, hid_sizes=(64, 32), layer_norm=True,
     return DenseLayer(l_hid, 1, nonlinearity=None)
 
 
-def build_actor_critic(state_size, num_act, layer_norm):
+def build_actor_critic(state_size, num_act, actor_layers, critic_layers, layer_norm):
     # input layers
     l_states = InputLayer([None, state_size])
     l_actions = InputLayer([None, num_act])
     l_input_critic = ConcatLayer([l_states, l_actions])
     # actor layer
-    l_actor = build_actor(l_states, num_act, layer_norm=layer_norm)
+    l_actor = build_actor(l_states, num_act, hid_sizes=actor_layers, layer_norm=layer_norm)
     # critic layer
-    l_critic = build_critic(l_input_critic, layer_norm=layer_norm)
+    l_critic = build_critic(l_input_critic, hid_sizes=critic_layers, layer_norm=layer_norm)
     return l_states, l_actions, l_actor, l_critic
 
 
 def build_model(state_size, num_act, gamma=0.99,
+                actor_layers=(64, 64),
+                critic_layers=(64, 32),
                 actor_lr=0.00025,
                 critic_lr=0.0005,
                 target_update_coeff=1e-4,
@@ -84,10 +86,11 @@ def build_model(state_size, num_act, gamma=0.99,
     terminals = T.col('terminals')
 
     # current network
-    l_states, l_actions, l_actor, l_critic = build_actor_critic(state_size, num_act, layer_norm)
+    l_states, l_actions, l_actor, l_critic = build_actor_critic(state_size,
+            num_act, actor_layers, critic_layers, layer_norm)
     # target network
     l_states_target, l_actions_target, l_actor_target, l_critic_target =\
-        build_actor_critic(state_size, num_act, layer_norm)
+        build_actor_critic(state_size, num_act, actor_layers, critic_layers, layer_norm)
 
     # get current network output tensors
     actions_pred = lasagne.layers.get_output(l_actor, states)

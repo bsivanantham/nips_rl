@@ -1,9 +1,12 @@
+Fork of [original repository](https://github.com/fgvbrt/nips_rl) modified for NIPS 2018.
+
 # Description
 [Reason8.ai](https://reason8.ai/) code for 3th place [NIPS learning to run challenge](https://www.crowdai.org/challenges/nips-2017-learning-to-run).
 
 We are porting this code to pytorch [here](https://github.com/Scitator/Run-Skeleton-Run)
 
 # Installation:
+### Automatic (old, might not work for new OpenSim version):
 1) Get opensim package. You can use default package as described [here](https://github.com/stanfordnmbl/osim-rl) or
 build by youself faster version [here](https://github.com/Scitator/opensim-core)
 2) Run setup script:
@@ -16,13 +19,24 @@ You may want to change conda env name in script and comment last line if not bui
 
         $ mv ~/.theanorc ~/.theanorc.backup
 
+### Manual (after having setup the OpenSim venv):
+Install dependencies:
+
+        $ conda install numpy scipy scikit-learn mkl theano
+        $ pip install https://github.com/Lasagne/Lasagne/archive/master.zip
+
 # Running code
 1) Activate environment:
 
         $ source activate nips_rl_fast3
+
 2) Run code with best flags:
 
         $ python run_experiment.py --param_noise_prob 0.3 --flip_prob 1 --layer_norm
+
+   New model parameters:
+
+        --accuracy 0.01 --modeldim 3D --prosthetic False --difficulty 0 --actor_layers \(64,64\) --critic_layers \(64,32\)
 
 # Other
 The final submitted model was trained in this [commit](https://github.com/fgvbrt/nips_rl/tree/e2ffeaa475c57c64bf6d4664b2ab47b46ecc1c6e/dpg3).
