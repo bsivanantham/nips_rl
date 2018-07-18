@@ -32,11 +32,7 @@ Install dependencies:
 
 2) Run code with best flags:
 
-        $ python run_experiment.py --param_noise_prob 0.3 --flip_prob 1 --layer_norm
-
-   New model parameters:
-
-        --accuracy 0.01 --modeldim 3D --prosthetic False --difficulty 0 --actor_layers \(64,64\) --critic_layers \(64,32\)
+        $ python run_experiment.py --accuracy 0.01 --modeldim 3D --prosthetic False --difficulty 0 --actor_layers \(64,64\) --critic_layers \(64,32\)
 
 # Other
 The final submitted model was trained in this [commit](https://github.com/fgvbrt/nips_rl/tree/e2ffeaa475c57c64bf6d4664b2ab47b46ecc1c6e/dpg3).
