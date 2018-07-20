@@ -47,6 +47,7 @@ def get_args():
     parser.add_argument('--actor_lr_end', type=float, default=5e-5, help="actor learning rate.")
     parser.add_argument('--flip_prob', type=float, default=0.,
                         help="Probability of flipping.")
+    parser.add_argument('--test', action='store_true', help="Visualize testing with a single thread but do not train.")
     parser.add_argument('--layer_norm', action='store_true', help="Use layer normalization.")
     parser.add_argument('--param_noise_prob', type=float, default=0.3, help="Probability of parameters noise.")
     parser.add_argument('--exp_name', type=str, default=datetime.now().strftime("%d.%m.%Y-%H.%M"),
@@ -59,8 +60,9 @@ def get_args():
 
 def test_agent(args, testing, state_transform, num_test_episodes,
                model_params, weights, best_reward, updates, global_step, save_dir):
-    env = RunEnv2(state_transform, integrator_accuracy=args.accuracy, model=args.modeldim,
-                  prosthetic=args.prosthetic, difficulty=args.difficulty, skip_frame=1)
+    env = RunEnv2(state_transform, visualize=args.test, integrator_accuracy=args.accuracy,
+                  model=args.modeldim, prosthetic=args.prosthetic, difficulty=args.difficulty,
+                  skip_frame=1)
     test_rewards = []
 
     train_fn, actor_fn, target_update_fn, params_actor, params_crit, actor_lr, critic_lr = \
@@ -75,7 +77,7 @@ def test_agent(args, testing, state_transform, num_test_episodes,
         while True:
             state = np.asarray(state, dtype='float32')
             action = actor.act(state)
-            state, reward, terminal, _ = env.step(action)
+            state, reward, terminal, _ = env._step(action)
             test_reward += reward
             if terminal:
                 break
@@ -148,7 +150,7 @@ def main():
     weights = [p.get_value() for p in params_actor]
 
     # build replay memory
-    memory = ReplayMemory(state_transform.state_size, num_actions, 5000000)
+    memory = ReplayMemory(state_transform.state_size, num_actions, 500)
 
     # init shared variables
     global_step = Value('i', 0)
@@ -160,8 +162,12 @@ def main():
     data_queue = Queue()
     workers = []
     weights_queues = []
-    num_agents = args.n_threads - 2
-    print('starting {} agents'.format(num_agents))
+    if not args.test:
+        num_agents = args.n_threads - 2
+        print('starting {} agents'.format(num_agents))
+    else:
+        num_agents = 1
+        print('starting testing agent')
     for i in range(num_agents):
         w_queue = Queue()
         worker = Process(target=run_agent,
@@ -175,7 +181,10 @@ def main():
         workers.append(worker)
         weights_queues.append(w_queue)
 
-    print('starting training')
+    if not args.test:
+        print('starting training')
+    else:
+        print('starting testing')
     prev_steps = 0
     start_save = time()
     start_test = time()
@@ -195,33 +204,34 @@ def main():
 
         # training step
         # TODO: consider not training during testing model
-        if len(memory) > args.start_train_steps:
-            batch = memory.random_batch(args.batch_size)
+        if not args.test:
+            if len(memory) > args.start_train_steps:
+                batch = memory.random_batch(args.batch_size)
 
-            if np.random.rand() < args.flip_prob:
-                states, actions, rewards, terminals, next_states = batch
+                if np.random.rand() < args.flip_prob:
+                    states, actions, rewards, terminals, next_states = batch
 
-                states_flip = state_transform.flip_states(states)
-                next_states_flip = state_transform.flip_states(next_states)
-                actions_flip = np.zeros_like(actions)
-                actions_flip[:, :num_actions//2] = actions[:, num_actions//2:]
-                actions_flip[:, num_actions//2:] = actions[:, :num_actions//2]
+                    states_flip = state_transform.flip_states(states)
+                    next_states_flip = state_transform.flip_states(next_states)
+                    actions_flip = np.zeros_like(actions)
+                    actions_flip[:, :num_actions//2] = actions[:, num_actions//2:]
+                    actions_flip[:, num_actions//2:] = actions[:, :num_actions//2]
 
-                states_all = np.concatenate((states, states_flip))
-                actions_all = np.concatenate((actions, actions_flip))
-                rewards_all = np.tile(rewards.ravel(), 2).reshape(-1, 1)
-                terminals_all = np.tile(terminals.ravel(), 2).reshape(-1, 1)
-                next_states_all = np.concatenate((next_states, next_states_flip))
-                batch = (states_all, actions_all, rewards_all, terminals_all, next_states_all)
+                    states_all = np.concatenate((states, states_flip))
+                    actions_all = np.concatenate((actions, actions_flip))
+                    rewards_all = np.tile(rewards.ravel(), 2).reshape(-1, 1)
+                    terminals_all = np.tile(terminals.ravel(), 2).reshape(-1, 1)
+                    next_states_all = np.concatenate((next_states, next_states_flip))
+                    batch = (states_all, actions_all, rewards_all, terminals_all, next_states_all)
 
-            actor_loss, critic_loss = train_fn(*batch)
-            updates.value += 1
-            if np.isnan(actor_loss):
-                raise Value('actor loss is nan')
-            if np.isnan(critic_loss):
-                raise Value('critic loss is nan')
-            target_update_fn()
-            weights = actor.get_actor_weights()
+                actor_loss, critic_loss = train_fn(*batch)
+                updates.value += 1
+                if np.isnan(actor_loss):
+                    raise Value('actor loss is nan')
+                if np.isnan(critic_loss):
+                    raise Value('critic loss is nan')
+                target_update_fn()
+                weights = actor.get_actor_weights()
 
         delta_steps = global_step.value - prev_steps
         prev_steps += delta_steps
